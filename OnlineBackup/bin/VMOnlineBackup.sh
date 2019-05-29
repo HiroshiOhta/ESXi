@@ -30,7 +30,7 @@ trap '\rm -f ${SCRIPT_TMP_ALL}' 1 2 3 15 EXIT
 # バックアップ除外リスト
 export exclude_def=${SCRIPT_CONF_DIR}/exclude.def
 
-# 除外キーワード設定(最後に|が含まれる)
+# 除外キーワード設定
 record_count=$(wc -l ${exclude_def})
 exclude_key=$(\awk -v LR=${record_count% *} '{printf((NR==LR)?"%s":"%s|", $0)}' ${exclude_def})
 
