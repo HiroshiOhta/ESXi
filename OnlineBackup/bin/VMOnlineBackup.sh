@@ -51,8 +51,8 @@ for target_vm_data in $(cat ${SCRIPT_TMP1}); do
 
     # バックアップ開始メッセージ
     log_priority=Info
-    log_message="${target_vm_name} backup start."
-    \logger -s -t ${0##*/} "[${log_priority}] ${log_message}" >> ${SCRIPT_LOG}
+    log_message="${target_vm_name} backup start. $(date +'%Y/%m/%d %H:%M:%S')"
+    \logger -s -t ${0##*/} "[${log_priority}] ${log_message}" | tee -a ${SCRIPT_LOG}
 
     # 仮想マシンの起動フラグ設定
     is_running=$(\vim-cmd vmsvc/power.getstat ${vmid} | awk '{if($1 ~ "Powered") print $NF}')
@@ -73,25 +73,28 @@ for target_vm_data in $(cat ${SCRIPT_TMP1}); do
             log_priority=Warning
             log_message="${backup_file} does not exist."
             return_code=3
-            \logger -s -t ${0##*/} "[${log_priority}] ${log_message} RC=${return_code}" >> ${SCRIPT_LOG}
+            \logger -s -t ${0##*/} "[${log_priority}] ${log_message} RC=${return_code}" | tee -a ${SCRIPT_LOG}
         fi
     done
 
     # スナップショットの作成
     if [[ ${is_running} == "on" ]]; then
-        \vim-cmd vmsvc/snapshot.create ${vmid} "for Online Bkup"
+        \vim-cmd vmsvc/snapshot.create ${vmid} "for Online Bkup" | tee -a ${SCRIPT_LOG}
 
         if [[ -z "$(\vim-cmd vmsvc/snapshot.get ${vmid} | grep "ROOT")" ]]; then
             log_priority=Error
             log_message="Create Snapshot has failed."
             return_code=3
-            \logger -s -t ${0##*/} "[${log_priority}] ${log_message} RC=${return_code}" >> ${SCRIPT_LOG}
+            \logger -s -t ${0##*/} "[${log_priority}] ${log_message} RC=${return_code}"| tee -a ${SCRIPT_LOG}
             continue
         fi
     fi
 
     # VMDKファイルのバックアップ
-    for vmdk_file in $(grep -Ev "\-rdm.vmdk|\-rdmp.vmdk" ${SCRIPT_TMP2}); do
+    for vmdk_file in $(< ${SCRIPT_TMP2}); do
+
+    ## Todo:
+    ##      vmdk ファイルのなかに "\-rdm.vmdk|\-rdmp.vmdk" を含む場合はスキップする処理を含める。
 
         if [[ -n "$(echo ${vmdk_file} | grep "vmfs")" ]]; then
             target_vmdk_file=${vmdk_file}
@@ -101,42 +104,42 @@ for target_vm_data in $(cat ${SCRIPT_TMP1}); do
             backup_vmdk_name=${vmdk_file}
         fi
 
-        vmkfstools -d monosparse -i ${target_vmdk_file} ${backup_dir}/${backup_vmdk_name} >> ${SCRIPT_LOG}
-        if [[ $? != 0 ]]; then
+        vmkfstools -d monosparse -i ${target_vmdk_file} ${backup_dir}/${backup_vmdk_name} 2>&1 | tee -a ${SCRIPT_LOG}
+        if [[ ${?} != 0 ]]; then
             log_priority=Error
             log_message="${target_vmdk_file} backup has failed."
             return_code=4
-            \logger -s -t ${0##*/} "[${log_priority}] ${log_message} RC=${return_code}" >> ${SCRIPT_LOG}
+            \logger -s -t ${0##*/} "[${log_priority}] ${log_message} RC=${return_code}" | tee -a ${SCRIPT_LOG}
             continue
         fi
     done
 
     # スナップショットの削除
     if [[ ${is_running} == "on" ]]; then
-        \vim-cmd vmsvc/snapshot.removeall ${vmid}
+        \vim-cmd vmsvc/snapshot.removeall ${vmid} | tee -a ${SCRIPT_LOG}
 
         if [[ -n "$(\vim-cmd vmsvc/snapshot.get ${vmid} | grep "ROOT")" ]]; then
             log_priority=Error
             log_message="Delete Snapshot has failed."
             return_code=5
-            \logger -s -t ${0##*/} "[${log_priority}] ${log_message} RC=${return_code}" >> ${SCRIPT_LOG}
+            \logger -s -t ${0##*/} "[${log_priority}] ${log_message} RC=${return_code}" | tee -a ${SCRIPT_LOG}
             continue
         fi
     fi
 
-    (cd ${backup_directory}/backup/${target_vm_name} ; tar -cvf ${SCRIPT_EXEC_DATE}.tgz ${SCRIPT_EXEC_DATE} >> ${SCRIPT_LOG})
+    (cd ${backup_directory}/backup/${target_vm_name} ; tar -cvf ${SCRIPT_EXEC_DATE}.tgz ${SCRIPT_EXEC_DATE} | tee -a ${SCRIPT_LOG})
     if [[ -f "${backup_directory}/backup/${target_vm_name}/${SCRIPT_EXEC_DATE}.tgz" ]]; then
         rm -fr ${backup_dir}
     else
         log_priority=Error
         log_message="Compress backup data has failed."
         return_code=6
-        \logger -s -t ${0##*/} "[${log_priority}] ${log_message} RC=${return_code}" >> ${SCRIPT_LOG}
+        \logger -s -t ${0##*/} "[${log_priority}] ${log_message} RC=${return_code}" | tee -a ${SCRIPT_LOG}
     fi
 
     # バックアップ開始メッセージ
     log_priority=Info
-    log_message="${target_vm_name} backup finish."
-    \logger -s -t ${0##*/} "[${log_priority}] ${log_message}" >> ${SCRIPT_LOG}
+    log_message="${target_vm_name} backup finish.  $(date +'%Y/%m/%d %H:%M:%S')"
+    \logger -s -t ${0##*/} "[${log_priority}] ${log_message}" | tee -a ${SCRIPT_LOG}
 
 done
